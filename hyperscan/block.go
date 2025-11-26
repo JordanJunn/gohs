@@ -101,7 +101,8 @@ func (bs *blockScanner) Scan(data []byte, s *Scratch, handler MatchHandler, cont
 type blockMatcher struct {
 	*blockScanner
 	*hs.MatchRecorder
-	n int
+	scratch *Scratch
+	n       int
 }
 
 func newBlockMatcher(scanner *blockScanner) *blockMatcher {
@@ -136,7 +137,16 @@ func (m *blockMatcher) scan(data []byte) error {
 		m.MatchRecorder.Err = nil
 	}
 
-	return m.blockScanner.Scan(data, nil, m.Handle, nil)
+	// lazy init and reuse scratch space to avoid 7.5MB malloc/free per scan
+	if m.scratch == nil {
+		var err error
+		m.scratch, err = NewScratch(m.blockScanner)
+		if err != nil {
+			return err //nolint: wrapcheck
+		}
+	}
+
+	return m.blockScanner.Scan(data, m.scratch, m.Handle, nil)
 }
 
 const findIndexMatches = 2
@@ -213,4 +223,21 @@ func (m *blockMatcher) Match(data []byte) bool {
 
 func (m *blockMatcher) MatchString(s string) bool {
 	return m.Match([]byte(s))
+}
+
+func (m *blockMatcher) Close() error {
+	var scratchErr error
+	if m.scratch != nil {
+		scratchErr = m.scratch.Free()
+		m.scratch = nil
+	}
+
+	// close the underlying database
+	dbErr := m.blockScanner.Close()
+
+	// return first error encountered
+	if scratchErr != nil {
+		return scratchErr //nolint: wrapcheck
+	}
+	return dbErr //nolint: wrapcheck
 }
