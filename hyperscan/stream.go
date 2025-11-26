@@ -219,7 +219,13 @@ func (m *streamMatcher) Handle(id uint, from, to uint64, flags uint, context int
 }
 
 func (m *streamMatcher) scan(reader io.Reader) error {
-	m.MatchRecorder = &hs.MatchRecorder{}
+	if m.MatchRecorder == nil {
+		m.MatchRecorder = &hs.MatchRecorder{}
+	} else {
+		// reuse existing recorder, just clear the events
+		m.MatchRecorder.Events = m.MatchRecorder.Events[:0]
+		m.MatchRecorder.Err = nil
+	}
 
 	stream, err := m.streamScanner.Open(0, nil, m.Handle, nil)
 	if err != nil {

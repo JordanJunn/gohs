@@ -127,7 +127,13 @@ func (m *blockMatcher) OnMatch(id uint, from, to uint64, flags uint,
 }
 
 func (m *blockMatcher) scan(data []byte) error {
-	m.MatchRecorder = &ch.MatchRecorder{}
+	if m.MatchRecorder == nil {
+		m.MatchRecorder = &ch.MatchRecorder{}
+	} else {
+		// reuse existing recorder, just clear the events
+		m.MatchRecorder.Events = m.MatchRecorder.Events[:0]
+		m.MatchRecorder.Err = nil
+	}
 
 	return m.blockScanner.Scan(data, nil, m, nil)
 }
